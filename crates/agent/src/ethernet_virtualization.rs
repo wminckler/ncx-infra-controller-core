@@ -75,7 +75,9 @@ impl InterfaceState {
     const HOST_INTERFACE_NAME: &str = "pf0hpf";
     pub fn command(&self) -> tokio::process::Command {
         let mut cmd = tokio::process::Command::new("ip");
-        cmd.arg("link").arg("set").arg(InterfaceState::HOST_INTERFACE_NAME);
+        cmd.arg("link")
+            .arg("set")
+            .arg(InterfaceState::HOST_INTERFACE_NAME);
         if InterfaceState::Up == *self {
             cmd.arg("up");
         } else {
@@ -84,9 +86,7 @@ impl InterfaceState {
         cmd
     }
 
-    pub async fn update_state(
-        needed_state: &Self,
-    ) -> eyre::Result<()> {
+    pub async fn update_state(needed_state: &Self) -> eyre::Result<()> {
         let current_state = get_interface_state(InterfaceState::HOST_INTERFACE_NAME).await?;
 
         if current_state != *needed_state {
@@ -783,7 +783,10 @@ async fn get_interface_state(interface_name: &str) -> eyre::Result<InterfaceStat
     let output = cmd.output().await?;
 
     if !output.status.success() {
-        return Err(eyre::eyre!("Failed to get interface state: {}", output.status));
+        return Err(eyre::eyre!(
+            "Failed to get interface state: {}",
+            output.status
+        ));
     }
 
     let output = String::from_utf8_lossy(&output.stdout);
@@ -805,10 +808,7 @@ fn needed_interface_state(is_primary_dpu: bool, use_admin_network: bool) -> Inte
     InterfaceState::Down
 }
 
-pub async fn update_interface_state(
-    nc: &ManagedHostNetworkConfigResponse,
-) -> eyre::Result<()> {
-
+pub async fn update_interface_state(nc: &ManagedHostNetworkConfigResponse) -> eyre::Result<()> {
     let needed_state = needed_interface_state(nc.is_primary_dpu, nc.use_admin_network);
 
     InterfaceState::update_state(&needed_state).await
