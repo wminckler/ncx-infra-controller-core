@@ -93,6 +93,8 @@ pub struct SkuComponents {
     pub cpus: Vec<SkuComponentCpu>,
     pub gpus: Vec<SkuComponentGpu>,
     pub memory: Vec<SkuComponentMemory>,
+    #[serde(default)]
+    pub ethernet_devices: Vec<SkuComponentEthernetDevices>,
     pub infiniband_devices: Vec<SkuComponentInfinibandDevices>,
     #[serde(default)]
     pub storage: Vec<SkuComponentStorage>,
@@ -116,6 +118,11 @@ impl From<rpc::forge::SkuComponents> for SkuComponents {
                 .collect(),
             memory: value
                 .memory
+                .into_iter()
+                .map(std::convert::Into::into)
+                .collect(),
+            ethernet_devices: value
+                .ethernet_devices
                 .into_iter()
                 .map(std::convert::Into::into)
                 .collect(),
@@ -148,7 +155,11 @@ impl From<SkuComponents> for rpc::forge::SkuComponents {
                 .into_iter()
                 .map(std::convert::Into::into)
                 .collect(),
-            ethernet_devices: Vec::default(),
+            ethernet_devices: value
+                .ethernet_devices
+                .into_iter()
+                .map(std::convert::Into::into)
+                .collect(),
             infiniband_devices: value
                 .infiniband_devices
                 .into_iter()
@@ -337,6 +348,34 @@ impl From<SkuComponentInfinibandDevices> for rpc::forge::SkuComponentInfinibandD
             model: value.model,
             count: value.count,
             inactive_devices: value.inactive_devices,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq, Ord, PartialOrd)]
+pub struct SkuComponentEthernetDevices {
+    pub vendor: String,
+    pub model: String,
+    pub count: u32,
+}
+
+impl From<rpc::forge::SkuComponentEthernetDevices> for SkuComponentEthernetDevices {
+    fn from(value: rpc::forge::SkuComponentEthernetDevices) -> Self {
+        SkuComponentEthernetDevices {
+            vendor: value.vendor,
+            model: value.model,
+            count: value.count,
+        }
+    }
+}
+
+impl From<SkuComponentEthernetDevices> for rpc::forge::SkuComponentEthernetDevices {
+    fn from(value: SkuComponentEthernetDevices) -> Self {
+        rpc::forge::SkuComponentEthernetDevices {
+            vendor: value.vendor,
+            model: value.model,
+            is_connected: false,
+            count: value.count,
         }
     }
 }
@@ -590,6 +629,47 @@ pub fn diff_skus(actual_sku: &Sku, expected_sku: &Sku) -> Vec<String> {
         diffs.push(format!(
             "Missing {} InfiniBand devices of Vendor: \"{}\" and Model: \"{}\"",
             missing_ib_devices.count, missing_ib_devices.vendor, missing_ib_devices.model
+        ));
+    }
+
+    let mut expected_eth_device_by_name: HashMap<
+        (&String, &String),
+        &SkuComponentEthernetDevices,
+    > = HashMap::new();
+    for eth_devices in expected_sku.components.ethernet_devices.iter() {
+        expected_eth_device_by_name.insert((&eth_devices.vendor, &eth_devices.model), eth_devices);
+    }
+
+    for actual_eth_device_definition in actual_sku.components.ethernet_devices.iter() {
+        match expected_eth_device_by_name.remove(&(
+            &actual_eth_device_definition.vendor,
+            &actual_eth_device_definition.model,
+        )) {
+            Some(expected) => {
+                if actual_eth_device_definition.count != expected.count {
+                    diffs.push(format!(
+                        "Expected ethernet device count ({}) does not match actual ({}) for Vendor: \"{}\" and Model: \"{}\"",
+                        expected.count,
+                        actual_eth_device_definition.count,
+                        expected.vendor,
+                        expected.model
+                    ));
+                }
+            }
+            None => {
+                diffs.push(format!(
+                    "Unexpected {} ethernet devices of Vendor: \"{}\" and Model: \"{}\"",
+                    actual_eth_device_definition.count,
+                    actual_eth_device_definition.vendor,
+                    actual_eth_device_definition.model
+                ));
+            }
+        }
+    }
+    for missing_eth_devices in expected_eth_device_by_name.values() {
+        diffs.push(format!(
+            "Missing {} ethernet devices of Vendor: \"{}\" and Model: \"{}\"",
+            missing_eth_devices.count, missing_eth_devices.vendor, missing_eth_devices.model
         ));
     }
 
