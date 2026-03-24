@@ -26,8 +26,9 @@ use model::machine::Machine;
 use model::machine::capabilities::{MachineCapabilitiesSet, MachineCapabilityInfiniband};
 use model::machine::machine_search_config::MachineSearchConfig;
 use model::sku::{
-    Sku, SkuComponentChassis, SkuComponentCpu, SkuComponentGpu, SkuComponentInfinibandDevices,
-    SkuComponentMemory, SkuComponentStorage, SkuComponentTpm, SkuComponents, diff_skus,
+    Sku, SkuComponentChassis, SkuComponentCpu, SkuComponentEthernetDevices, SkuComponentGpu,
+    SkuComponentInfinibandDevices, SkuComponentMemory, SkuComponentStorage, SkuComponentTpm,
+    SkuComponents, diff_skus,
 };
 use sqlx::PgConnection;
 
@@ -37,7 +38,7 @@ use crate::{DatabaseError, ObjectFilter, Transaction, machine};
 /// The current version of the SKU format.  The state machine will create older
 /// versions from hardware using the currently assigned sku's version so that
 /// SKUs can maintain backward compatibility
-pub const CURRENT_SKU_VERSION: u32 = 4;
+pub const CURRENT_SKU_VERSION: u32 = 5;
 
 /// Find a SKU that matches the specified SKU using the same comparison that
 /// the SKU validation code uses. (i.e. the description, id and others are not compared)
@@ -271,6 +272,7 @@ pub async fn generate_sku_from_machine_at_version(
         2 => generate_sku_from_machine_at_version_2(txn, machine_id).await,
         3 => generate_sku_from_machine_at_version_3(txn, machine_id).await,
         4 => generate_sku_from_machine_at_version_4(txn, machine_id).await,
+        5 => generate_sku_from_machine_at_version_5(txn, machine_id).await,
         _ => Err(DatabaseError::new(
             "generate_sku_from_machine_at_version",
             sqlx::Error::RowNotFound,
@@ -415,6 +417,7 @@ pub async fn generate_sku_from_machine_at_version_0_or_1(
                 .collect(),
             gpus: gpu_components.into_values().collect(),
             memory: mem_components.into_values().collect(),
+            ethernet_devices: Vec::default(),
             infiniband_devices: ib_components,
             storage: storage.into_values().collect(),
             tpm: None,
@@ -504,6 +507,21 @@ pub fn generate_base_sku_from_hardware(
         .sorted()
         .collect();
 
+    let ethernet_devices: Vec<SkuComponentEthernetDevices> = if schema_version >= 5 {
+        capabilities
+            .network
+            .into_iter()
+            .map(|cap| SkuComponentEthernetDevices {
+                vendor: cap.vendor.unwrap_or_default(),
+                model: cap.name,
+                count: cap.count,
+            })
+            .sorted()
+            .collect()
+    } else {
+        Vec::default()
+    };
+
     let mut description = format!(
         "{}; {}xCPU; {}xGPU; {}",
         chassis.model,
@@ -514,6 +532,10 @@ pub fn generate_base_sku_from_hardware(
     let num_ib_devices = infiniband_devices.iter().map(|c| c.count).sum::<u32>();
     if num_ib_devices != 0 {
         write!(&mut description, "; {num_ib_devices}xIB").unwrap();
+    }
+    let num_eth_devices = ethernet_devices.iter().map(|c| c.count).sum::<u32>();
+    if schema_version >= 5 && num_eth_devices != 0 {
+        write!(&mut description, "; {num_eth_devices}xETH").unwrap();
     }
 
     Sku {
@@ -526,6 +548,7 @@ pub fn generate_base_sku_from_hardware(
             cpus,
             gpus,
             memory: mem_components.into_values().collect(),
+            ethernet_devices,
             infiniband_devices,
             storage: Vec::default(),
             tpm: None,
@@ -665,6 +688,65 @@ pub async fn generate_sku_from_machine_at_version_4(
     };
 
     let mut sku = generate_base_sku_from_hardware(&machine, 4, hardware_info);
+
+    // Storage cannot be pulled from capabilities (yet).  The block devices are no longer used
+    // as RAID devices cause issues by created additional devices (and how depends on which
+    // RAID card is used) Note that this will include RAID devices themselves, but not the
+    // intermediate devices created by the RAID device.
+    let mut storage: BTreeMap<String, SkuComponentStorage> = BTreeMap::default();
+    hardware_info.nvme_devices.iter().for_each(|nvme| {
+        storage
+            .entry(nvme.model.clone())
+            .and_modify(|s| s.count += 1)
+            .or_insert(SkuComponentStorage {
+                model: nvme.model.clone(),
+                count: 1,
+            });
+    });
+    sku.components.storage = storage.into_values().collect();
+
+    // Vendor and Model fields do not contain useful information.  They seem limited and encoded somehow.
+    // We really only care about the spec version supported and that a TPM exists.
+    sku.components.tpm = hardware_info
+        .tpm_description
+        .as_ref()
+        .map(|tpm| SkuComponentTpm {
+            vendor: tpm.vendor.clone(),
+            version: tpm.tpm_spec.clone(),
+        });
+
+    Ok(sku)
+}
+
+pub async fn generate_sku_from_machine_at_version_5(
+    txn: impl DbReader<'_>,
+    machine_id: &MachineId,
+) -> Result<Sku, DatabaseError> {
+    let Some(machine) = machine::find(
+        txn,
+        ObjectFilter::One(*machine_id),
+        MachineSearchConfig {
+            include_predicted_host: true,
+            ..Default::default()
+        },
+    )
+    .await?
+    .into_iter()
+    .next() else {
+        return Err(DatabaseError::new(
+            "generate sku: find machine (v5)",
+            sqlx::Error::RowNotFound,
+        ));
+    };
+
+    let Some(hardware_info) = machine.hardware_info.as_ref() else {
+        return Err(DatabaseError::new(
+            "generate sku: load hardware info (v5)",
+            sqlx::Error::RowNotFound,
+        ));
+    };
+
+    let mut sku = generate_base_sku_from_hardware(&machine, 5, hardware_info);
 
     // Storage cannot be pulled from capabilities (yet).  The block devices are no longer used
     // as RAID devices cause issues by created additional devices (and how depends on which
