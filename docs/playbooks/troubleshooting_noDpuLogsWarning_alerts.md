@@ -14,9 +14,9 @@ The format of the alert name is "\<NICo site ID\>-noDpuLogsWarning (\<NICo site 
 2. The machine is being worked on by another SRE team member. The machine might be powered off, undergoing maintenance or might have been force-deleted.
 
 3. Issues with systemd services on the DPU ARM OS. <br/>
-On the DPU ARM OS, check that node-exporter, otelcol-contrib and forge-dpu-otel-agent services are running and not reporting errors: <br/>
+On the DPU ARM OS, check that node-exporter, otelcol-contrib and forge-dpu-agent services are running and not reporting errors (OpenTelemetry OTLP uses mTLS certs under `/opt/forge`, renewed by forge-dpu-agent): <br/>
 ```bash
-systemctl status node-exporter otelcol-contrib forge-dpu-otel-agent
+systemctl status node-exporter otelcol-contrib forge-dpu-agent
 ```
 
 4. Hostname is not picked up by the OpenTelemetry Collector service <br/>

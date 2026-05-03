@@ -144,36 +144,6 @@ description = "Build carbide-fmds for CI"
 command = "cargo"
 args = ["build", "--release", "--bin", "carbide-fmds"]
 
-[tasks.build-dpu-otel-agent]
-category = "Build"
-description = "cross compile forge-dpu-otel-agent locally"
-workspace = false
-script = '''
-docker run --rm -v $REPO_ROOT:/carbide --user $(id -u):$(id -g) \
-    --env CARGO_HOME=/cargo \
-    -v $CARGO_HOME:/cargo \
-    build-artifacts-container-cross-aarch64:latest \
-    "cargo" \
-    "build" \
-    "--release" \
-    "--target=aarch64-unknown-linux-gnu" \
-    "--bin" \
-    "forge-dpu-otel-agent"
-    docker run --rm -v $REPO_ROOT:/carbide --user $(id -u):$(id -g) build-artifacts-container-cross-aarch64:latest "aarch64-linux-gnu-strip" \
-    "/carbide/target/aarch64-unknown-linux-gnu/release/forge-dpu-otel-agent"
-'''
-dependencies = [
-  { name = "build-cross-docker-image", path = "${REPO_ROOT}" },
-  { name = "check-cargo-home-set", path = "${REPO_ROOT}" },
-]
-
-[tasks.build-dpu-otel-agent-ci]
-category = "Build"
-workspace = false
-description = "Referring to the prebuilt 'build' task doesn't work here, since it always tries to build the full workspace - including targets that are not aarch64 compatible"
-command = "cargo"
-args = ["build", "--release", "--bin", "forge-dpu-otel-agent"]
-
 [tasks.download-otelcol-builder]
 category = "Build"
 description = "Download ocb binary (custom otelcol builder)"
@@ -375,21 +345,14 @@ script = '''
   export vers=${DPU_AGENT_PKG_VERSION}
   mkdir -p "forge-dpu_${vers}_arm64/lib/systemd/system"
   mkdir -p "forge-dpu_${vers}_arm64/usr/bin"
-  mkdir -p "forge-dpu_${vers}_arm64/usr/local/bin"
-  mkdir -p "forge-dpu_${vers}_arm64/usr/local/sbin"
   mkdir -p "forge-dpu_${vers}_arm64/var/lib/hbn/var/support/forge-dhcp/bin"
   mkdir -p "forge-dpu_${vers}_arm64/var/lib/hbn/var/support/forge-dhcp/conf"
   mkdir -p "forge-dpu_${vers}_arm64/var/lib/hbn/var/support/forge-dhcp/logs"
-  mkdir -p "forge-dpu_${vers}_arm64/etc/otelcol-contrib/certs/private" && chmod 600 "forge-dpu_${vers}_arm64/etc/otelcol-contrib/certs/private"
-  mkdir -p "forge-dpu_${vers}_arm64/etc/forge-dpu-otel-agent"
+  mkdir -p "forge-dpu_${vers}_arm64/etc/otelcol-contrib"
   mkdir -p "forge-dpu_${vers}_arm64/var/lib/otelcol-contrib/cursors"
   cp ${REPO_ROOT}/target/aarch64-unknown-linux-gnu/release/forge-dpu-agent "forge-dpu_${vers}_arm64/usr/bin/"
   cp ${REPO_ROOT}/target/aarch64-unknown-linux-gnu/release/forge-dhcp-server "forge-dpu_${vers}_arm64/var/lib/hbn/var/support/forge-dhcp/bin/"
-  cp ${REPO_ROOT}/target/aarch64-unknown-linux-gnu/release/forge-dpu-otel-agent "forge-dpu_${vers}_arm64/usr/bin/"
-  cp otel/otel-agent "forge-dpu_${vers}_arm64/usr/local/bin/" && chmod u+x "forge-dpu_${vers}_arm64/usr/local/bin/otel-agent"
-  cp otel/scripts/otel_copy_certs.sh "forge-dpu_${vers}_arm64/usr/local/sbin/" && chmod u+x "forge-dpu_${vers}_arm64/usr/local/sbin/otel_copy_certs.sh"
   cp misc/forge-dpu-agent.service "forge-dpu_${vers}_arm64/lib/systemd/system/"
-  cp misc/forge-dpu-otel-agent.service "forge-dpu_${vers}_arm64/lib/systemd/system/"
   cp misc/clean_core_files.sh "forge-dpu_${vers}_arm64/usr/bin/" && chmod u+x "forge-dpu_${vers}_arm64/usr/bin/clean_core_files.sh"
   cp misc/local_bmc_dev "forge-dpu_${vers}_arm64/usr/bin/"
   cp misc/local_bmc_dev.service "forge-dpu_${vers}_arm64/lib/systemd/system/"
@@ -401,7 +364,6 @@ script = '''
   cp otel/otelcol-wrapper-validate "forge-dpu_${vers}_arm64/etc/otelcol-contrib/" && chmod u+x "forge-dpu_${vers}_arm64/etc/otelcol-contrib/otelcol-wrapper-validate"
   cp -r otel/config-fragments "forge-dpu_${vers}_arm64/etc/otelcol-contrib/"
   cp otel/otel_config.yaml "forge-dpu_${vers}_arm64/etc/otelcol-contrib/config.yaml"
-  cp otel/otel-agent-config.toml "forge-dpu_${vers}_arm64/etc/forge-dpu-otel-agent/config.toml"
   cp -r misc/DEBIAN "forge-dpu_${vers}_arm64/"
   sed -i "s/SED__DPU_AGENT_PKG_VERSION/${vers}/" forge-dpu_${vers}_arm64/DEBIAN/control
 '''
@@ -410,7 +372,6 @@ dependencies = [
   "include-otelcol",
   "include-node-exporter",
   "include-transceiver-exporter",
-  "build-dpu-otel-agent",
 ]
 
 [tasks.setup-forge-dpu-deb]
@@ -420,21 +381,14 @@ script = '''
     export vers=${DPU_AGENT_PKG_VERSION}
     mkdir -p "forge-dpu_${vers}_arm64/lib/systemd/system"
     mkdir -p "forge-dpu_${vers}_arm64/usr/bin"
-    mkdir -p "forge-dpu_${vers}_arm64/usr/local/bin"
-    mkdir -p "forge-dpu_${vers}_arm64/usr/local/sbin"
     mkdir -p "forge-dpu_${vers}_arm64/var/lib/hbn/var/support/forge-dhcp/bin"
     mkdir -p "forge-dpu_${vers}_arm64/var/lib/hbn/var/support/forge-dhcp/conf"
     mkdir -p "forge-dpu_${vers}_arm64/var/lib/hbn/var/support/forge-dhcp/logs"
-    mkdir -p "forge-dpu_${vers}_arm64/etc/otelcol-contrib/certs/private" && chmod 600 "forge-dpu_${vers}_arm64/etc/otelcol-contrib/certs/private"
-    mkdir -p "forge-dpu_${vers}_arm64/etc/forge-dpu-otel-agent"
+    mkdir -p "forge-dpu_${vers}_arm64/etc/otelcol-contrib"
     mkdir -p "forge-dpu_${vers}_arm64/var/lib/otelcol-contrib/cursors"
     cp ${REPO_ROOT}/target/release/forge-dpu-agent "forge-dpu_${vers}_arm64/usr/bin/"
     cp ${REPO_ROOT}/target/release/forge-dhcp-server "forge-dpu_${vers}_arm64/var/lib/hbn/var/support/forge-dhcp/bin/"
-    cp ${REPO_ROOT}/target/release/forge-dpu-otel-agent "forge-dpu_${vers}_arm64/usr/bin/"
-    cp otel/otel-agent "forge-dpu_${vers}_arm64/usr/local/bin/" && chmod u+x "forge-dpu_${vers}_arm64/usr/local/bin/otel-agent"
-    cp otel/scripts/otel_copy_certs.sh "forge-dpu_${vers}_arm64/usr/local/sbin/" && chmod u+x "forge-dpu_${vers}_arm64/usr/local/sbin/otel_copy_certs.sh"
     cp misc/forge-dpu-agent.service "forge-dpu_${vers}_arm64/lib/systemd/system/"
-    cp misc/forge-dpu-otel-agent.service "forge-dpu_${vers}_arm64/lib/systemd/system/"
     cp misc/clean_core_files.sh "forge-dpu_${vers}_arm64/usr/bin/" && chmod u+x "forge-dpu_${vers}_arm64/usr/bin/clean_core_files.sh"
     cp misc/local_bmc_dev "forge-dpu_${vers}_arm64/usr/bin/"
     cp misc/local_bmc_dev.service "forge-dpu_${vers}_arm64/lib/systemd/system/"
@@ -446,7 +400,6 @@ script = '''
     cp otel/otelcol-wrapper-validate "forge-dpu_${vers}_arm64/etc/otelcol-contrib/" && chmod u+x "forge-dpu_${vers}_arm64/etc/otelcol-contrib/otelcol-wrapper-validate"
     cp -r otel/config-fragments "forge-dpu_${vers}_arm64/etc/otelcol-contrib/"
     cp otel/otel_config.yaml "forge-dpu_${vers}_arm64/etc/otelcol-contrib/config.yaml"
-    cp otel/otel-agent-config.toml "forge-dpu_${vers}_arm64/etc/forge-dpu-otel-agent/config.toml"
     cp -r misc/DEBIAN "forge-dpu_${vers}_arm64/"
 	sed -i "s/SED__DPU_AGENT_PKG_VERSION/${vers}/" forge-dpu_${vers}_arm64/DEBIAN/control
 '''
@@ -455,7 +408,6 @@ dependencies = [
   "include-otelcol",
   "include-node-exporter",
   "include-transceiver-exporter",
-  "build-dpu-otel-agent-ci",
 ]
 
 [tasks.setup-forge-dpu-deb-ci]
@@ -465,21 +417,14 @@ script = '''
     export vers=${DPU_AGENT_PKG_VERSION}
     mkdir -p "forge-dpu_${vers}_arm64/lib/systemd/system"
     mkdir -p "forge-dpu_${vers}_arm64/usr/bin"
-    mkdir -p "forge-dpu_${vers}_arm64/usr/local/bin"
-    mkdir -p "forge-dpu_${vers}_arm64/usr/local/sbin"
     mkdir -p "forge-dpu_${vers}_arm64/var/lib/hbn/var/support/forge-dhcp/bin"
     mkdir -p "forge-dpu_${vers}_arm64/var/lib/hbn/var/support/forge-dhcp/conf"
     mkdir -p "forge-dpu_${vers}_arm64/var/lib/hbn/var/support/forge-dhcp/logs"
-    mkdir -p "forge-dpu_${vers}_arm64/etc/otelcol-contrib/certs/private" && chmod 600 "forge-dpu_${vers}_arm64/etc/otelcol-contrib/certs/private"
-    mkdir -p "forge-dpu_${vers}_arm64/etc/forge-dpu-otel-agent"
+    mkdir -p "forge-dpu_${vers}_arm64/etc/otelcol-contrib"
     mkdir -p "forge-dpu_${vers}_arm64/var/lib/otelcol-contrib/cursors"
     cp ${REPO_ROOT}/target/release/forge-dpu-agent "forge-dpu_${vers}_arm64/usr/bin/"
     cp ${REPO_ROOT}/target/release/forge-dhcp-server "forge-dpu_${vers}_arm64/var/lib/hbn/var/support/forge-dhcp/bin/"
-    cp ${REPO_ROOT}/target/release/forge-dpu-otel-agent "forge-dpu_${vers}_arm64/usr/bin/"
-    cp otel/otel-agent "forge-dpu_${vers}_arm64/usr/local/bin/" && chmod u+x "forge-dpu_${vers}_arm64/usr/local/bin/otel-agent"
-    cp otel/scripts/otel_copy_certs.sh "forge-dpu_${vers}_arm64/usr/local/sbin/" && chmod u+x "forge-dpu_${vers}_arm64/usr/local/sbin/otel_copy_certs.sh"
     cp misc/forge-dpu-agent.service "forge-dpu_${vers}_arm64/lib/systemd/system/"
-    cp misc/forge-dpu-otel-agent.service "forge-dpu_${vers}_arm64/lib/systemd/system/"
     cp misc/clean_core_files.sh "forge-dpu_${vers}_arm64/usr/bin/" && chmod u+x "forge-dpu_${vers}_arm64/usr/bin/clean_core_files.sh"
     cp misc/local_bmc_dev "forge-dpu_${vers}_arm64/usr/bin/"
     cp misc/local_bmc_dev.service "forge-dpu_${vers}_arm64/lib/systemd/system/"
@@ -491,7 +436,6 @@ script = '''
     cp otel/otelcol-wrapper-validate "forge-dpu_${vers}_arm64/etc/otelcol-contrib/" && chmod u+x "forge-dpu_${vers}_arm64/etc/otelcol-contrib/otelcol-wrapper-validate"
     cp -r otel/config-fragments "forge-dpu_${vers}_arm64/etc/otelcol-contrib/"
     cp otel/otel_config.yaml "forge-dpu_${vers}_arm64/etc/otelcol-contrib/config.yaml"
-    cp otel/otel-agent-config.toml "forge-dpu_${vers}_arm64/etc/forge-dpu-otel-agent/config.toml"
     cp -r misc/DEBIAN "forge-dpu_${vers}_arm64/"
 	sed -i "s/SED__DPU_AGENT_PKG_VERSION/${vers}/" forge-dpu_${vers}_arm64/DEBIAN/control
 '''
@@ -500,7 +444,6 @@ dependencies = [
   "include-otelcol",
   "include-node-exporter",
   "include-transceiver-exporter",
-  "build-dpu-otel-agent-ci",
 ]
 
 [tasks.build-forge-dpu-deb-local]
@@ -522,20 +465,13 @@ script = '''
     mkdir -p "otel-dpu_${vers}_arm64/lib/systemd/system"
     mkdir -p "otel-dpu_${vers}_arm64/usr/bin"
     mkdir -p "otel-dpu_${vers}_arm64/usr/local/sbin"
-    mkdir -p "otel-dpu_${vers}_arm64/etc/otelcol-contrib/certs/private" && chmod 600 "otel-dpu_${vers}_arm64/etc/otelcol-contrib/certs/private"
-    mkdir -p "otel-dpu_${vers}_arm64/usr/share/otelcol-contrib/docker/otel-agent"
+    mkdir -p "otel-dpu_${vers}_arm64/etc/otelcol-contrib"
     cp misc/otelcol-contrib.service "otel-dpu_${vers}_arm64/lib/systemd/system/"
     cp otel/site-controller/otelcol-wrapper "otel-dpu_${vers}_arm64/etc/otelcol-contrib/" && chmod u+x "otel-dpu_${vers}_arm64/etc/otelcol-contrib/otelcol-wrapper"
     cp otel/site-controller/otel_config.yaml "otel-dpu_${vers}_arm64/etc/otelcol-contrib/config.yaml"
-    cp otel/site-controller/otel-agent/Dockerfile "otel-dpu_${vers}_arm64/usr/share/otelcol-contrib/docker/otel-agent/"
-    cp otel/site-controller/otel-agent/otel-agent.sh "otel-dpu_${vers}_arm64/usr/share/otelcol-contrib/docker/otel-agent/" && chmod u+x "otel-dpu_${vers}_arm64/usr/share/otelcol-contrib/docker/otel-agent/otel-agent.sh"
-    cp otel/site-controller/otel-agent/otel-agent.yaml.template "otel-dpu_${vers}_arm64/usr/share/otelcol-contrib/docker/otel-agent/"
     cp otel/site-controller/scripts/map_endpoints.sh "otel-dpu_${vers}_arm64/usr/local/sbin/" && chmod u+x "otel-dpu_${vers}_arm64/usr/local/sbin/map_endpoints.sh"
     cp otel/site-controller/scripts/localhost_alias.sh "otel-dpu_${vers}_arm64/usr/local/sbin/" && chmod u+x "otel-dpu_${vers}_arm64/usr/local/sbin/localhost_alias.sh"
     cp otel/site-controller/scripts/otel_post_install.sh "otel-dpu_${vers}_arm64/usr/local/sbin/" && chmod u+x "otel-dpu_${vers}_arm64/usr/local/sbin/otel_post_install.sh"
-    cp misc/site-controller/otel-agent.service "otel-dpu_${vers}_arm64/lib/systemd/system/"
-    cp ${REPO_ROOT}/target/aarch64-unknown-linux-gnu/release/forge-dpu-otel-agent "otel-dpu_${vers}_arm64/usr/bin/otel-agent"
-    cp otel/otel-agent-config.toml "otel-dpu_${vers}_arm64/etc/otelcol-contrib/otel-agent.toml"
     cp "forge-dpu_${vers}_arm64/usr/bin/otelcol-contrib" "otel-dpu_${vers}_arm64/usr/bin/"
     cp -r misc/site-controller/DEBIAN "otel-dpu_${vers}_arm64/"
     sed -i "s/SED__DPU_AGENT_PKG_VERSION/${vers}/" otel-dpu_${vers}_arm64/DEBIAN/control
@@ -591,15 +527,6 @@ script = '''
     helm package ${REPO_ROOT}/bluefield/charts/carbide-dhcp-server -d ${REPO_ROOT}/target/charts/
 '''
 
-[tasks.helm-package-carbide-dpu-otel-agent]
-category = "Build"
-description = "Package the carbide-dpu-otel-agent Helm chart"
-workspace = false
-script = '''
-    mkdir -p ${REPO_ROOT}/target/charts/
-    helm package ${REPO_ROOT}/bluefield/charts/carbide-dpu-otel-agent -d ${REPO_ROOT}/target/charts/
-'''
-
 [tasks.helm-package-carbide-fmds]
 category = "Build"
 description = "Package the carbide-fmds Helm chart"
@@ -617,7 +544,6 @@ dependencies = [
   "helm-package-carbide-otelcol",
   "helm-package-carbide-dpu-agent",
   "helm-package-carbide-dhcp-server",
-  "helm-package-carbide-dpu-otel-agent",
   "helm-package-carbide-fmds",
 ]
 
@@ -656,18 +582,6 @@ script = '''
 '''
 dependencies = ["build-dpu-agent-and-dhcp-server"]
 
-[tasks.docker-build-dpu-otel-agent]
-category = "Build"
-description = "Build the carbide-dpu-otel-agent container image for arm64"
-workspace = false
-script = '''
-    docker build \
-        -t ${CARBIDE_IMAGE_REGISTRY:-nvcr.io/nvidia/carbide}/forge-dpu-otel-agent:${DPU_AGENT_PKG_VERSION} \
-        -f ${REPO_ROOT}/bluefield/containers/forge-dpu-otel-agent/Dockerfile \
-        ${REPO_ROOT}
-'''
-dependencies = ["build-dpu-otel-agent"]
-
 [tasks.docker-build-fmds]
 category = "Build"
 description = "Build the carbide-fmds container image for arm64"
@@ -688,6 +602,5 @@ dependencies = [
   "docker-build-otelcol",
   "docker-build-dpu-agent",
   "docker-build-dhcp-server",
-  "docker-build-dpu-otel-agent",
   "docker-build-fmds",
 ]

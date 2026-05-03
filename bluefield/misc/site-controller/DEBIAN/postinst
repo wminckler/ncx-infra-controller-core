@@ -15,7 +15,6 @@ if [ "$1" = "configure" ]; then
 
 	systemctl daemon-reload
 	systemctl enable otelcol-contrib.service
-	systemctl enable otel-agent.service
 
 	# Do not depend on starting services now, as this package is installed early in setup
 	# and should not hang or cause out of order steps in discovery workflows. The discovery
@@ -27,7 +26,6 @@ if [ "$1" = "configure" ]; then
  		# this is not the discovery workflow and otelcol-contrib can restart without
  		# interfering. Restart is needed to pick up any configuration changes.
 
-		systemctl restart otel-agent.service
 		systemctl restart otelcol-contrib.service
 	fi
 fi

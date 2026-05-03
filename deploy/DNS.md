@@ -123,9 +123,11 @@ Ingests telemetry (metrics, traces, and logs) exported by otel-collector sidecar
 
 **Consumers:**
 - `carbide-otelcol` — the otel-collector sidecar deployed on each DPU via the `bluefield/charts/carbide-otelcol` Helm chart
-- Site controller otel agents (`bluefield/otel/site-controller/`)
+- Site-controller DPU OpenTelemetry package (`bluefield/otel/site-controller/`) — same OTLP config pattern; mTLS uses `/opt/forge` machine certs
 
 **Configurability:** The endpoint is set in otel-collector configuration YAML files (`bluefield/charts/carbide-otelcol/files/otel_config.yaml`, `bluefield/otel/otel_config.yaml`, `bluefield/otel/site-controller/otel_config.yaml`). Changing the address requires updating those files and redeploying the otel-collector.
+
+**DPF upgrades:** If a cluster still has a `carbide-dpu-otel-agent` Helm release from an older NICo version, uninstall it after upgrading. OTLP client TLS uses `/opt/forge` machine certificates renewed by `forge-dpu-agent`; the separate otel cert DaemonSet is no longer used.
 
 ---
 

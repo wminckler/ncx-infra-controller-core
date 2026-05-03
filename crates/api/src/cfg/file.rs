@@ -712,7 +712,7 @@ fn default_dpf_node_label_key() -> String {
 /// Making it configurable means, a user can provide the link for his version of the service (for
 /// testing/dev purpose).
 /// There are following mandatory services:
-/// dpu-agent, fmds, dhcp-server, doca-hbn, dts and otel.
+/// dpu-agent, fmds, dhcp-server, doca-hbn, dts and otel (collector).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DpfMandatoryServicesConfig {
     #[serde(default = "crate::dpf_services::default_dts_service")]
@@ -727,8 +727,6 @@ pub struct DpfMandatoryServicesConfig {
     pub fmds: DpfServiceConfig,
     #[serde(default = "crate::dpf_services::default_otelcol_service")]
     pub otel: DpfServiceConfig,
-    #[serde(default = "crate::dpf_services::default_otel_agent_service")]
-    pub otel_agent: DpfServiceConfig,
 }
 
 impl Default for DpfMandatoryServicesConfig {
@@ -740,7 +738,6 @@ impl Default for DpfMandatoryServicesConfig {
             dhcp_server: crate::dpf_services::default_dhcp_server_service(),
             fmds: crate::dpf_services::default_fmds_service(),
             otel: crate::dpf_services::default_otelcol_service(),
-            otel_agent: crate::dpf_services::default_otel_agent_service(),
         }
     }
 }

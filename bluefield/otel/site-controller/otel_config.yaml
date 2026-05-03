@@ -51,9 +51,9 @@ exporters:
   otlp/site:
     endpoint: otel-receiver.forge:443
     tls:
-      ca_file: /etc/otelcol-contrib/certs/ca.pem
-      cert_file: /etc/otelcol-contrib/certs/otel-cert.pem
-      key_file: /etc/otelcol-contrib/certs/private/otel-key.pem
+      ca_file: /opt/forge/forge_root.pem
+      cert_file: /opt/forge/machine_cert.pem
+      key_file: /opt/forge/machine_cert.key
       reload_interval: 1h
     retry_on_failure:
       enabled: true
